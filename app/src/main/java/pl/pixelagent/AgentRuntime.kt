@@ -27,15 +27,15 @@ class AgentRuntime(
     private var emptyObservations = 0
     private var waits = 0
     private val history = ArrayList<String>()
-    private val maxSteps = 25
+    private val maxSteps = 30
     private var pendingFolkText: String? = null
     private var messageSent = false
     private var lastSignature = ""
     private var repeated = 0
 
     fun start() {
-        if (initialApp !in allowed) {
-            end("Nie wybrano uprawnienia do tej aplikacji.")
+        if (initialApp !in allowed || AppCatalog.restricted(initialApp)) {
+            end("Aplikacja jest niedostępna lub chroniona.")
             return
         }
         if (!keepForeground && service.activePackage() != initialApp && !openApp(initialApp)) {
@@ -68,7 +68,7 @@ class AgentRuntime(
     }
 
     private fun openApp(packageName: String): Boolean {
-        if (packageName !in allowed) return false
+        if (packageName !in allowed || !AppCatalog.canLaunch(activity, packageName)) return false
         return try {
             val intent = if (packageName == "com.android.settings")
                 Intent(Settings.ACTION_SETTINGS)
@@ -117,7 +117,7 @@ class AgentRuntime(
                         .containsMatchIn(goal + " " + action.value))
                     return "Wprowadzanie haseł i kodów jednorazowych jest wyłączone."
             }
-            "OPEN_APP" -> if (action.value !in allowed)
+            "OPEN_APP" -> if (action.value !in allowed || !AppCatalog.canLaunch(activity, action.value))
                 return "Aplikacja nie znajduje się na liście dozwolonych."
             "OPEN_URL" -> {
                 if ("com.android.chrome" !in allowed || action.value.length > 1000)
@@ -135,7 +135,7 @@ class AgentRuntime(
     private fun cycle() {
         if (cancelled) return
         if (PhoneService.current !== service) { end("Wyłączono usługę Dostępności."); return }
-        if (steps >= maxSteps) { end("Zatrzymano po osiągnięciu limitu 25 działań."); return }
+        if (steps >= maxSteps) { end("Zatrzymano po osiągnięciu limitu 30 działań."); return }
         val observation = service.observe(allowed)
         if (observation == null) {
             if (emptyObservations++ < 5) {
@@ -151,12 +151,15 @@ class AgentRuntime(
             return
         }
         note("Analizuję: " + observation.app + " | widoczne elementy: " +
-            observation.targets.size + " | krok " + (steps + 1) + "/25")
+            observation.targets.size + " | krok " + (steps + 1) + "/30")
         val prompt = buildString {
             append("Jesteś agentem sterującym fizycznym Androidem. Użytkownik wydał polecenie, ")
             append("a aplikacja może wykonać tylko niżej wymienione operacje po jego zatwierdzeniu.\n")
             append("Polecenie: ").append(goal).append("\n")
-            append("Dozwolone aplikacje: ").append(allowed.joinToString(", ")).append("\n")
+            append("Aplikacje zainstalowane (NAZWA => PAKIET):\n")
+            append(AppCatalog.availableForModel(activity, goal, observation.app)).append("\n")
+            append("Możesz otwierać zainstalowane aplikacje OPEN_APP, jeśli cel tego wymaga. ") 
+            append("Po wysłaniu do Folka możesz przejść do ChatGPT używając OPEN_APP z value com.openai.chatgpt.\n")
             append("Ostatnie działania: ").append(history.takeLast(8).joinToString(" | ")).append("\n")
             append("Stan telefonu:\n").append(observation.summary).append("\n")
             append("Odpowiedz WYŁĄCZNIE JSON, bez Markdown:\n")
@@ -164,7 +167,7 @@ class AgentRuntime(
             append("Dostępne action: TAP, TYPE, ENTER, SCROLL_DOWN, SCROLL_UP, BACK, HOME, ")
             append("OPEN_APP, OPEN_URL, WAIT, DONE.\n")
             append("TAP id musi wskazywać element oznaczony TAP. TYPE i ENTER muszą wskazywać id oznaczone TYPE. ")
-            append("OPEN_APP używa nazwy pakietu w value z listy dozwolonych. ")
+            append("OPEN_APP używa nazwy pakietu z listy zainstalowanych aplikacji. ")
             append("OPEN_URL używa pełnego bezpiecznego HTTPS URL w value i wymaga dozwolonego Chrome. ")
             append("Dla SCROLL_* możesz podać id SCROLL lub id=-1. ")
             append("WAIT powoduje odczekanie 1 sekundy, DONE kończy zadanie.\n")
@@ -174,7 +177,9 @@ class AgentRuntime(
             append("Jeżeli nie możesz osiągnąć celu lub nie ma bezpiecznej akcji, odpowiedz DONE. ")
             append("Jeżeli właśnie wpisano wiadomość do Folka, aplikacja wyśle ją w osobnym kroku SEND. ") 
             append("Nie powtarzaj TYPE, gdy wiadomość już została napisana. Nie używaj ENTER do wysyłania na Telegramie. ") 
-            append("Nie uznawaj kliknięcia za dowód wykonania celu, obserwuj następny ekran.")
+            append("Nie uznawaj kliknięcia za dowód wykonania celu, obserwuj następny ekran. ") 
+            append("Gdy użytkownik poleca wrócić do ChatGPT, nie kończ zadania w Telegramie. ") 
+            append("Nie wybieraj DONE przed realizacją ostatniego etapu polecenia.")
         }
         executor.execute {
             try {
@@ -208,9 +213,9 @@ class AgentRuntime(
         if (action.kind == "TYPE" && observation.app == "org.telegram.messenger" &&
             !service.telegramFolkChat()) return false
         if (action.kind == "ENTER" && observation.app == "org.telegram.messenger") return false
-        if (action.kind == "TAP" && riskyLabel.containsMatchIn(label)) return false
-        if (action.kind == "TYPE" && observation.app != "org.telegram.messenger" &&
-            observation.app != "com.android.chrome") return false
+        if (action.kind == "TAP" && riskyLabel.containsMatchIn(label) &&
+            !(observation.app == "com.openai.chatgpt" && Regex("(?i)^(send|wyślij|send message)$").containsMatchIn(label.trim()))) return false
+        if (action.kind == "TYPE" && AppCatalog.restricted(observation.app)) return false
         if (action.kind == "SEND") return service.telegramFolkChat()
         return true
     }
@@ -238,7 +243,7 @@ class AgentRuntime(
             end("Agent próbował trzeci raz wykonać identyczną akcję na niezmienionym ekranie. Zatrzymano.")
             return
         }
-        note("Działanie " + (steps + 1) + "/25: " + action.kind +
+        note("Działanie " + (steps + 1) + "/30: " + action.kind +
             " " + (target?.label ?: action.value.take(55)))
 
         val complete: (Boolean, Boolean) -> Unit = { approved, ok ->
@@ -273,17 +278,26 @@ class AgentRuntime(
                                     return@postDelayed
                                 }
                                 if (action.kind == "SEND") {
+                                    // A send is a one-shot operation, never retry it based on an ambiguous UI.
                                     messageSent = true
                                     pendingFolkText = null
                                     val actual = service.telegramComposerText()
-                                    if (actual != null && actual.isNotBlank()) {
-                                        end("Nie potwierdzono wysyłki: pole nadal zawiera wiadomość. Nie wysyłam ponownie.")
-                                    } else if (!service.telegramFolkChat()) {
-                                        end("Nie można potwierdzić rozmowy z Folkiem po wysyłce. Nie wysyłam ponownie.")
+                                    if (actual != null && actual.isBlank()) {
+                                        note("Telegram wyczyścił pole po próbie wysyłki. Nie ponawiam.")
                                     } else {
-                                        note("Wiadomość do Folka wysłana; pole tekstowe jest puste.")
-                                        cycle()
+                                        note("Telegram: próba wysłania wykonana jeden raz. Brak pewnego potwierdzenia - nie ponawiam.")
                                     }
+                                    val wantsChatGpt = Regex("(?i)(chat\\s*gpt|chatgpt|gpt|wr[oó]c[^\\s]* do czatu)")
+                                        .containsMatchIn(goal)
+                                    if (wantsChatGpt && "com.openai.chatgpt" in allowed &&
+                                        AppCatalog.canLaunch(activity, "com.openai.chatgpt")) {
+                                        note("Otwieram ChatGPT zgodnie z poleceniem.")
+                                        if (!openApp("com.openai.chatgpt")) end("Nie udało się otworzyć ChatGPT.")
+                                        else {
+                                            history.add("OPEN_APP ChatGPT po Telegramie")
+                                            main.postDelayed({ cycle() }, 1900L)
+                                        }
+                                    } else cycle()
                                     return@postDelayed
                                 }
                                 val after = service.observe(allowed)
