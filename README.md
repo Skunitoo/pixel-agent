@@ -1,21 +1,42 @@
-# Pixel Agent - Android hardware smoke test
+# Pixel Agent - Android Accessibility + ChatGPT OAuth
 
-Private-purpose Android AccessibilityService prototype for Pixel 8 Pro.
+Personal open-source Android prototype for Pixel 8 Pro. The app is local to your Android phone, and GitHub contains **only code**.
 
-## Current scope (v0.4 test)
-- Opens `https://example.org` in Chrome
-- Locally reads the active Chrome accessibility tree (no screenshots, no network requests)
-- Shows a system Accessibility overlay requesting explicit approval to perform Back
-- Returns to Pixel Agent after approval; decline does nothing
+## Current release: v0.5 (experimental)
+- v0.4 Chrome hardware smoke test: successfully confirmed on a real Pixel 8 Pro.
+- OpenAI Sign in with ChatGPT (open-source dynamic client registration, OAuth PKCE S256, loopback callback on `127.0.0.1`).
+- OpenAI ID token RSA signature validation against official JWKS, nonce, audience, issuer and expiry checks.
+- OAuth scope `chatgpt.tokens.use.direct` required; encrypted token storage via Android Keystore (AES-256-GCM).
+- Access-token refresh via rotating refresh token.
+- Lists eligible model slugs from `https://api.openai.com/v1/models`.
+- Calls `https://api.openai.com/v1/responses` with `store:false`, `stream:true`, and displays text after `response.completed`.
+- One AI-guided, human-approved action: open `example.org` in Chrome, inspect a limited accessibility summary, ask the model BACK vs STOP, then ask for confirmation before executing BACK.
+- No native OpenAI Computer Use, no bank or broker integrations, no background autonomy.
 
-**This build deliberately contains NO OpenAI authentication or autonomous LLM agent.**
-This is an isolated hardware permission / interface test before OAuth and model integration.
+## Install
+From GitHub **Actions > Build Android debug APK > latest successful run > Artifacts**, download `pixel-agent-debug-apk`, unzip and sideload `app-debug.apk` on Android.
 
-## Build
-GitHub Actions -> Android APK -> latest run -> Artifacts -> `pixel-agent-debug-apk`.
-Sideload the APK on your phone and enable Pixel Agent in Settings > Accessibility.
-Android may initially block sideloaded accessibility services: Settings > Apps > Pixel Agent > three dots > Allow restricted settings; then retry Accessibility.
-Only enable this service if you trust the installed APK and its source. Turn it off when testing finishes.
+In Pixel Agent, optionally enable **Pixel Agent** under Android Settings > Accessibility. On Android, sideloaded accessibility may require **App info > ... > Allow restricted settings**.
 
-Android SDK 35, Gradle 8.9, Java 17, Kotlin 2.0.21, AGP 8.7.3.
-No tokens or secrets are stored in this repository.
+Tap **Continue with ChatGPT**. Consent is optional; if access isn't granted, the app cannot make AI calls. The browser redirects to an ephemeral listener on your **own phone** at `http://127.0.0.1:<port>/auth/callback`. Return to the application after Chrome displays confirmation. The loopback listener does not require a server or cloud hosting.
+
+Tap **Test odpowiedzi OpenAI**. Only when that succeeds use **Test AI na Chrome**.
+
+## Security
+- Sensitive accounts/screens: do not use them with this prototype.
+- Code is not a security-audited Android agent; review permissions and avoid password fields.
+- Tokens are stored locally encrypted using the Android Keystore; never stored in GitHub.
+- Signing out removes local tokens; remote authorization is controlled in ChatGPT settings.
+- Debug APK is not release-signed for production distribution.
+- Only invoke actions after human approval.
+- Accessibility text from the Chrome test can be sent to OpenAI; use only public test pages.
+
+## Official docs
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
+
+## Development
+GitHub Actions builds via Gradle 8.9 / Android Gradle Plugin 8.7.3 / SDK 35 / Java 17. App source in `app/src/main/java/pl/pixelagent/`.
+
+This build is experimental, not yet verified against a real OAuth grant. The success of the Android compilation alone does not prove sign-in or inference works.

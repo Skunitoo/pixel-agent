@@ -53,6 +53,31 @@ class PhoneService : AccessibilityService() {
         return true to ("rozpoznano " + count + " elementów, w tym " + visibleElements + " interaktywnych lub tekstowych.")
     }
 
+
+    // Only the explicitly launched Chrome test page is sent to the model.
+    // Never collect passwords, editable fields, or text from other apps.
+    fun readChromeForAi(): Pair<Boolean, String> {
+        val root = rootInActiveWindow ?: return false to "Brak aktywnego okna"
+        if (root.packageName?.toString() != "com.android.chrome") return false to "To nie Chrome"
+        val found = ArrayList<String>()
+        var visited = 0
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (depth > 12 || visited >= 120 || found.size >= 24) return
+            visited++
+            if (!node.isPassword && !node.isEditable) {
+                val content = (node.text ?: node.contentDescription)?.toString()?.trim().orEmpty()
+                if (content.isNotEmpty() && !content.contains("http") && content.length < 120)
+                    found.add(content.take(65))
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                walk(child, depth + 1)
+            }
+        }
+        walk(root, 0)
+        return true to (if (found.isEmpty()) "Test Chrome: brak etykiet" else found.joinToString(" | ").take(900))
+    }
+
     fun askToGoBack(description: String, done: (String) -> Unit) {
         handler.post {
             if (rootInActiveWindow?.packageName?.toString() != "com.android.chrome") {
