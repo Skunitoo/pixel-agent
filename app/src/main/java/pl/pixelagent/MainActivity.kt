@@ -208,12 +208,14 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     if (decision == "STOP") {
                         loopRunning.set(false)
-                        report("Model zakończył zadanie po " + history.size + " krokach.")
+                        report("Model wybrał STOP po " + history.size + " krokach; kandydatów TAP: " + observation.targets.size)
+                        service.showAgentNotice("AI wybrało STOP; linków: " + observation.targets.size + ". Wróć do Pixel Agent po szczegóły.", 30000)
                     } else if (decision !in setOf("SCROLL_DOWN", "SCROLL_UP", "BACK") &&
                         !(decision.startsWith("TAP:") && observation.targets.any { "TAP:${it.id}" == decision })
                     ) {
                         loopRunning.set(false)
                         report("Niepoprawna akcja modelu: " + decision.take(80))
+                        service.showAgentNotice("AI podało nieznaną akcję: " + decision.take(70), 30000)
                     } else {
                         report("Krok " + step + "/5 - model wybrał " + decision + ". Oczekuję potwierdzenia.")
                         service.approveMultiStep(decision, step, observation) { approved, success ->
