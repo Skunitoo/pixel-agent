@@ -38,8 +38,18 @@ class AgentRuntime(
             end("Aplikacja jest niedostępna lub chroniona.")
             return
         }
-        if (!keepForeground && service.activePackage() != initialApp && !openApp(initialApp)) {
-            end("Nie udało się uruchomić aplikacji: " + initialApp)
+        // Start from the visible app unless the user explicitly asked to send
+        // a message via Telegram/Folk. In that case route deterministically to
+        // Telegram instead of waiting for the model to discover the transition.
+        val needsTelegram = Regex("(?i)(telegram|\\bfolk(owi|iem|a|u)?\\b)")
+            .containsMatchIn(goal) &&
+            Regex("(?i)(napisz|wyślij|wiadomoś|message|send|powiedz|przekaż)")
+                .containsMatchIn(goal)
+        val firstApp = if (needsTelegram && "org.telegram.messenger" in allowed &&
+            AppCatalog.canLaunch(activity, "org.telegram.messenger"))
+            "org.telegram.messenger" else initialApp
+        if (service.activePackage() != firstApp && !openApp(firstApp)) {
+            end("Nie udało się uruchomić aplikacji: " + firstApp)
             return
         }
         if (autonomous) service.enableEmergencyStop { stop() }
