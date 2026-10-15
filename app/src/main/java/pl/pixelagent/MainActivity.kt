@@ -248,7 +248,9 @@ class MainActivity : Activity() {
 
     private fun report(message: String) {
         runOnUiThread {
-            if (::statusView.isInitialized) statusView.text = "Status: " + message
+            debugLog.append(message.take(330)).append("\n\n")
+            if (debugLog.length > 6000) debugLog.delete(0, 3500)
+            if (::statusView.isInitialized) statusView.text = "DZIENNIK:\n" + debugLog.toString().takeLast(2700)
             if (loopRunning.get()) PhoneService.current?.showAgentNotice(message.take(180))
         }
     }
