@@ -25,6 +25,49 @@ class PhoneService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private val windowManagerRef by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
 
+    private var progressView: TextView? = null
+    private var hideProgress: Runnable? = null
+    fun showAgentNotice(message: String, duration: Long = 90000L) {
+        handler.post {
+            hideProgress?.let { handler.removeCallbacks(it) }
+            var view = progressView
+            if (view == null) {
+                view = TextView(this).apply {
+                    setBackgroundColor(0xe51d314a.toInt())
+                    setTextColor(-1)
+                    textSize = 14f
+                    setPadding(20, 12, 20, 12)
+                }
+                val layout = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP
+                    y = (resources.displayMetrics.density * 75).toInt()
+                }
+                try { windowManagerRef.addView(view, layout); progressView = view }
+                catch (_: Exception) { return@post }
+            }
+            view.text = message.take(300)
+            val timeout = Runnable { clearAgentNotice() }
+            hideProgress = timeout
+            handler.postDelayed(timeout, duration)
+        }
+    }
+    fun clearAgentNotice() {
+        handler.post {
+            hideProgress?.let { handler.removeCallbacks(it) }
+            hideProgress = null
+            val view = progressView ?: return@post
+            progressView = null
+            try { windowManagerRef.removeView(view) } catch (_: Exception) {}
+        }
+    }
+
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         current = this
@@ -92,7 +135,7 @@ class PhoneService : AccessibilityService() {
         val found = LinkedHashSet<String>()
         val candidates = ArrayList<ChromeTarget>()
         var count = 0
-        val minTop = (resources.displayMetrics.density * 125).toInt()
+        val minTop = (resources.displayMetrics.density * 95).toInt()
         val ban = Regex(
             "^(login|log in|sign in|sign up|konto|profil|wyloguj|zaloguj|rejestracja|" +
             "usuń|delete|send|wyślij|submit|potwierdź|purchase|checkout|kup|zamów|płać|" +
@@ -102,14 +145,21 @@ class PhoneService : AccessibilityService() {
         fun describe(node: AccessibilityNodeInfo): String {
             val raw = (node.text ?: node.contentDescription)?.toString()?.trim().orEmpty()
             if (raw.isNotBlank()) return raw.replace(Regex("\\s+"), " ").take(74)
-            // Text labels of links may be owned by direct descendants.
-            for (i in 0 until minOf(node.childCount, 4)) {
-                val child = node.getChild(i) ?: continue
-                if (child.isPassword || child.isEditable) continue
-                val t = (child.text ?: child.contentDescription)?.toString()?.trim().orEmpty()
-                if (t.isNotBlank()) return t.replace(Regex("\\s+"), " ").take(74)
+            // Link text may be several levels below a clickable parent.
+            var visited = 0
+            fun descend(parent: AccessibilityNodeInfo, depth: Int): String {
+                if (depth > 3 || visited++ > 25) return ""
+                for (i in 0 until minOf(parent.childCount, 10)) {
+                    val child = parent.getChild(i) ?: continue
+                    if (child.isPassword || child.isEditable) continue
+                    val t = (child.text ?: child.contentDescription)?.toString()?.trim().orEmpty()
+                    if (t.isNotBlank()) return t.replace(Regex("\\s+"), " ").take(74)
+                    val nested = descend(child, depth + 1)
+                    if (nested.isNotBlank()) return nested
+                }
+                return ""
             }
-            return ""
+            return descend(node, 0)
         }
         fun visit(node: AccessibilityNodeInfo, depth: Int, inSensitiveNode: Boolean) {
             if (depth > 14 || count++ > 220 || candidates.size >= 22 && found.size >= 35) return
