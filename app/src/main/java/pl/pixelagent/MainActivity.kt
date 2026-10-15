@@ -204,7 +204,11 @@ class MainActivity : Activity() {
                     "Cel: " + goal + "\n" +
                     "Poprzednie czynności: " + history.joinToString(", ") + "\n" +
                     "Odczyt ekranu: " + reading.second + "\n" + observation.targets.joinToString("\n") { "TAP:${it.id} ${it.label}" }
-                val decision = ai.infer(prompt).trim().uppercase()
+                val raw = ai.infer(prompt).trim().uppercase()
+                val match = Regex("""TAP\s*:\s*(\d+)""").find(raw)
+                val decision = match?.let { "TAP:" + it.groupValues[1] }
+                    ?: raw.trim().trim('"')
+                report("Odpowiedź modelu: " + raw.take(90) + "; akcja: " + decision)
                 runOnUiThread {
                     if (decision == "STOP") {
                         loopRunning.set(false)
