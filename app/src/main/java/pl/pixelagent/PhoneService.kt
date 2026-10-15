@@ -295,7 +295,8 @@ class PhoneService:AccessibilityService(){
   latestStatus=msg.take(450)
   val report=msg.substringAfterLast("\n").trim()
   val important=Regex("(?i)(^błąd|^nie uda|^nie mogę|^najpierw|^ten ekran|^aplikacja jest|" +
-      "^agent zatrzymany|^model zakończył|^zatrzymano|^telegram: próba wysłania)")
+      "^agent zatrzymany|^model zakończył|^zatrzymano|^telegram: próba wysłania|" +
+      "^android nie|^nie potwierdzono|^ekran nie|^brak |^zbyt wiele|^nie wykonano)")
   if(important.containsMatchIn(report)){
    handler.post{
     val now=SystemClock.uptimeMillis()
