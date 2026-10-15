@@ -58,7 +58,14 @@ class AgentRuntime(
         if (autonomous) service.enableEmergencyStop { stop() }
         note(if (autonomous) "Autopilot aktywny. Czerwony STOP AI zatrzymuje działanie." else
              "Tryb nadzorowany: potwierdzaj każdą czynność.")
-        main.postDelayed({ cycle() }, 1800)
+        main.postDelayed({
+            // startActivity may return without actually bringing an app to the
+            // foreground on recent Android versions. Do not hallucinate success.
+            if (cancelled) return@postDelayed
+            if (firstApp != initialApp && service.activePackage() != firstApp) {
+                end("Android nie otworzył Telegrama. Uruchom go ręcznie i spróbuj ponownie.")
+            } else cycle()
+        }, 2100)
     }
 
     fun stop() {
@@ -305,16 +312,24 @@ class AgentRuntime(
                                     if (wantsChatGpt && "com.openai.chatgpt" in allowed &&
                                         AppCatalog.canLaunch(activity, "com.openai.chatgpt")) {
                                         note("Otwieram ChatGPT zgodnie z poleceniem.")
-                                        if (!openApp("com.openai.chatgpt")) end("Nie udało się otworzyć ChatGPT.")
-                                        else {
+                                        if (!openApp("com.openai.chatgpt")) {
+                                            end("Nie udało się uruchomić ChatGPT.")
+                                        } else {
                                             history.add("OPEN_APP ChatGPT po Telegramie")
-                                            main.postDelayed({ cycle() }, 1900L)
+                                            main.postDelayed({
+                                                if (cancelled) return@postDelayed
+                                                if (service.activePackage() != "com.openai.chatgpt") {
+                                                    end("Android nie przełączył na ChatGPT.")
+                                                } else cycle()
+                                            }, 2500L)
                                         }
                                     } else cycle()
                                     return@postDelayed
                                 }
                                 val after = service.observe(allowed)
-                                if (action.kind == "TAP" && after != null && after.hash == snapshot.hash) {
+                                if (action.kind == "OPEN_APP" && after?.app != action.value) {
+                                    end("Android nie przełączył na wskazaną aplikację: " + action.value)
+                                } else if (action.kind == "TAP" && after != null && after.hash == snapshot.hash) {
                                     end("TAP nie zmienił ekranu. Zatrzymano.")
                                 } else cycle()
                             }, delay)
