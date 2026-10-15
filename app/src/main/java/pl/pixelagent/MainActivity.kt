@@ -252,7 +252,7 @@ class MainActivity : Activity() {
                         (if (command.target >= 0) " [" + command.target + "]" else "") +
                         " | " + command.reason)
                     when (command.action) {
-                        "STOP" -> finish("Model zakończył zadanie. Sprawdź, czy wynik jest prawidłowy.")
+                        "STOP" -> finish("Wynik AI: " + (command.result.ifBlank { command.reason }).take(1200))
                         "WAIT" -> {
                             if (++waitingCount > 3) {
                                 finish("AI zbyt długo czeka bez działania.")
