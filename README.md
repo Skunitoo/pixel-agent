@@ -1,37 +1,40 @@
-# Pixel Agent v1.2 - floating Android AI agent
+# Pixel Agent v1.2.1 - touch and performance hotfix
 
-Personal, sideloaded AI controller for Pixel 8 Pro. Native Kotlin and Android AccessibilityService. OpenAI Sign in with ChatGPT OAuth; no separate server needed.
+Private Android agent for Pixel 8 Pro, using AccessibilityService and ChatGPT OAuth. Source and CI are publicly reviewable. This is a sideloaded experimental build, not a production-grade computer-use agent.
 
-## Usage
-1. Install APK from GitHub Actions, enable Pixel Agent in Android Accessibility settings, and sign in to ChatGPT once from the app.
-2. Open any eligible installed application, such as Telegram, Chrome, Maps, YouTube or ChatGPT.
-3. Touch the floating **✦** bubble and describe the entire task. **There is no app chooser.**
-4. The agent starts in the app that was visible when the overlay was opened, and can change to other installed apps with `OPEN_APP`. Its package inventory is discovered from Android PackageManager.
-5. During execution a red **STOP AI** button is always visible. The task ends at DONE, on an error, or after 30 actions.
+## What changed since v1.2
+The user reported that v1.2 blocked taps where the status banner appeared, caused major phone UI lag, and did not bring Telegram to the foreground when requested.
 
-## Fixed versus v1.1
-- The prior build repeatedly stopped on "send not confirmed" after Telegram visibly sent the text, which blocked further navigation.
-- v1.2 treats sending to the identified **Folk bot chat** as a single attempt. It **never retries a possibly sent message**.
-- If the task requires ChatGPT after messaging Folk, the runtime launches installed `com.openai.chatgpt` and resumes planning rather than treating Telegram's composer state as a permanent blocker.
-- Sending a message to a different person or chat still requires confirmation.
-- Both the floating overlay and main setup screen no longer ask users to select an app. The foreground app at invocation determines the starting point.
+- **The full-width floating status strip is removed entirely.** Only the compact ✦ launcher, the focusable composer while being edited, and a small STOP AI control while working can overlay other applications. Final errors are shown using short system toasts.
+- **App discovery no longer scans every installed app on the UI thread.** A one-time background thread builds a cached list; model planning reads that fast cached list without PackageManager enumeration.
+- **The input composer releases keyboard focus and removes its overlay synchronously** before the agent starts. It does not re-add the launcher while launching a task.
+- **Explicit instructions to message Folk/Telegram navigate to Telegram first**, even when ✦ was activated in a different app. Without explicit routing, the agent starts where the user invoked it.
+- After opening Telegram or ChatGPT, **the agent verifies the foreground app** before planning further actions. It stops with a visible error if Android blocks the transition.
+- A pending Telegram SEND still executes at most once and is **never blindly retried**. If a task requests ChatGPT afterward, the agent attempts to open it and verifies the transition.
 
-## Safety and privacy
-- Text accessible on the phone's active application may be transmitted to OpenAI for inference. Do not run on confidential screens.
-- Payment, banking, broker, wallet, password manager, authenticator, health and some government applications are heuristically excluded. Heuristics cannot provide a security guarantee.
-- Autopilot may still propose high-impact actions; human approval or blocking remains for actions considered sensitive. Only allow personal automation on information you are authorized to access.
-- Android's `QUERY_ALL_PACKAGES` is used to discover installed apps. This version is intended solely for personal sideloading; Play Store distribution would require a separate eligibility and privacy policy review.
-- You can stop anytime through the red floating STOP AI button. Android can terminate the app's accessibility service in the background.
-- It is not a secure persistent daemon and not compatible with every Android application; protected and custom-drawn interfaces can restrict accessibility nodes.
-- Tokens are stored locally using Android Keystore. No credentials belong in GitHub.
-- A GitHub Actions debug signing key may differ between builds, which can require uninstalling the previous version and logging in again.
+## Install and use
+1. GitHub Actions -> latest green **Build Android debug APK** -> download `pixel-agent-debug-apk` -> unzip `app-debug.apk`.
+2. Sideload APK. If Android rejects it due to a changed debug signature, uninstall older Pixel Agent first and log in again.
+3. Enable Pixel Agent under Settings -> Accessibility and log in to ChatGPT once.
+4. In an eligible app, press ✦, type a task and press Uruchom.
+5. The composer disappears; the agent proceeds. **STOP AI** can interrupt anytime. To disable all overlays, turn off Pixel Agent's Accessibility access in Android settings.
 
-## What is verified
-- v0.4 Chrome Accessibility gesture verified on a real Pixel 8 Pro.
-- v0.5 ChatGPT OAuth and model reply reported working by user.
-- v0.6 basic multi-step scroll completed on user device.
-- v1.0-v1.1 are compiled and v1.1 user demonstrated a Telegram send and task stopping on send verification.
-- v1.2 must successfully compile in GitHub Actions; this alone does **not** prove end-to-end behavior on Android. Avoid claiming runtime hardware verification before actually observed.
+## Privacy and limitations
+- The model sees accessibility text from the active application. Never activate on sensitive or private screens without considering what is being sent to OpenAI.
+- Heuristics exclude common banking, payment, broker, password and other sensitive apps, but **do not guarantee exclusion of every risky or sensitive app**.
+- Android (including recent releases) may restrict programmatic activity launches from a background service. The application now reports a failed transition instead of pretending it succeeded.
+- Some Android apps lack accessible buttons and labels, so universal app control is not guaranteed.
+- Tokens are stored locally via Android Keystore; they are not included in source.
+- CI compilation verifies syntax/buildability; it does not certify touchscreen or cross-app behavior on actual hardware.
+- This is not a persistent 24/7 automation daemon.
 
-## Build
-GitHub Actions -> latest green "Build Android debug APK" -> artifact `pixel-agent-debug-apk` -> unzip `app-debug.apk`. SDK 35, Kotlin 2.0.21, Gradle 8.9, AGP 8.7.3, Java 17.
+## Earlier verified milestones
+- v0.4 Pixel Chrome gesture completed.
+- v0.5 OAuth and model decision reported working.
+- v0.6 two-step scrolling reported working.
+- v1.1 Folk Telegram message was observed sent; the agent incorrectly stopped on uncertain send verification.
+- v1.2 built but caused UI blocking/jank in user testing.
+- v1.2.1 is the release targeting those faults; end-to-end Pixel hardware behavior needs a real device to confirm.
+
+## Build tooling
+Android SDK 35, Java 17, AGP 8.7.3, Kotlin 2.0.21, Gradle 8.9. GitHub Actions workflow in `.github/workflows/android.yml`.
