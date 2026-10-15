@@ -48,7 +48,10 @@ class AgentRuntime(
         val firstApp = if (needsTelegram && "org.telegram.messenger" in allowed &&
             AppCatalog.canLaunch(activity, "org.telegram.messenger"))
             "org.telegram.messenger" else initialApp
-        if (service.activePackage() != firstApp && !openApp(firstApp)) {
+        // Keep the user's current screen (e.g. an open Folk chat) intact.
+        // Only launch another app for an explicit cross-app request.
+        if ((firstApp != initialApp || !keepForeground) &&
+            service.activePackage() != firstApp && !openApp(firstApp)) {
             end("Nie udało się uruchomić aplikacji: " + firstApp)
             return
         }
