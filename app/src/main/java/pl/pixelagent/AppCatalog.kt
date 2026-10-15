@@ -3,6 +3,7 @@ package pl.pixelagent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Discovers eligible installed apps for private, sideloaded multi-app automation. */
 object AppCatalog {
@@ -32,7 +33,30 @@ object AppCatalog {
     )
     fun restricted(pkg: String) = excluded.containsMatchIn(pkg)
 
-    fun installed(context: Context): List<App> {
+    // UI callers only read a fast immutable snapshot; PackageManager discovery
+    // runs once on a worker thread, never on Android's accessibility/UI thread.
+    @Volatile private var cachedApps: List<App> = fallback
+    private val discoveryStarted = AtomicBoolean(false)
+
+    fun preload(context: Context) {
+        if (!discoveryStarted.compareAndSet(false, true)) return
+        val appContext = context.applicationContext
+        Thread({
+            try {
+                cachedApps = discover(appContext)
+            } catch (_: Exception) {
+                cachedApps = fallback
+            }
+        }, "PixelAgent-AppDiscovery").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    fun installed(context: Context): List<App> = cachedApps
+
+    // IMPORTANT: This function must only be called from preload's worker thread.
+    private fun discover(context: Context): List<App> {
         val pm = context.packageManager
         val result = ArrayList<App>()
         try {
