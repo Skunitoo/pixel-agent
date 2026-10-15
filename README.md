@@ -50,3 +50,12 @@ This build is experimental, not yet verified against a real OAuth grant. The suc
 - v0.6 cannot click links, submit forms, write messages, access other apps, trade or make payments.
 - OAuth and token storage unchanged since v0.5; app must be reinstalled if debug signing key changes.
 - v0.6 must still be tested on the actual Pixel; compilation alone is not a hardware validation.
+
+
+## v0.7 - testowy TAP w Chrome (2026-10-15)
+- Opcjonalne wybieranie widocznego, nieedytowalnego elementu strony jako TAP:id w modelu.
+- Usługa filtruje przyciski dotyczące logowania, zakupów i ustawień; stale sprawdza, że aktywna jest Chrome.
+- Przed kliknięciem sprawdza pełną listę kandydatów i pozycję konkretnego elementu; nie klika w ciemno.
+- Każdy TAP wymaga zgody na nakładce Androida. Po pierwszym TAP sesja zatrzymuje się celowo.
+- Potwierdzone sprzętowo v0.6: model ukończył test po dwóch zatwierdzonych krokach.
+- v0.7 wciąż wymaga testu na Pixelu; kompilacja sama nie dowodzi działania kliknięcia.
