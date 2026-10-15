@@ -1,0 +1,3 @@
+<resources>
+    <string name="accessibility_description">Odczytuje ekran Chrome i wykonuje Wstecz tylko po jawnym zatwierdzeniu na ekranie. Usługę można wyłączyć w ustawieniach Androida.</string>
+</resources>
