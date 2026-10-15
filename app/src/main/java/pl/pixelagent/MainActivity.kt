@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var ai: ChatGptClient
     private val loopRunning = AtomicBoolean(false)
     private lateinit var goalInput: EditText
+    private val debugLog = StringBuilder()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +48,7 @@ class MainActivity : Activity() {
         }
 
         description("PIXEL AGENT", 25f)
-        description("v0.7 - sterowanie Chrome: przewijanie, cofanie i pojedyncze kliknięcie bezpiecznego elementu strony. Zatwierdzasz każdą akcję.")
+        description("v0.7.1 - diagnostyka AI w Chrome, wykrywanie linków i zatwierdzane kliknięcia.")
         action("1. Włącz Dostępność") {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
@@ -156,7 +157,7 @@ class MainActivity : Activity() {
     }
 
 
-    private fun runLoop(service: PhoneService, goal: String, history: MutableList<String>, step: Int) {
+    private fun runLoop(service: PhoneService, goal: String, history: MutableList<String>, step: Int, retries: Int = 0) {
         if (step > 5) {
             loopRunning.set(false)
             report("Agent zakończył: limit 5 kroków.")
@@ -169,12 +170,26 @@ class MainActivity : Activity() {
         }
         val observation = service.inspectChromeActions()
         if (observation == null) {
+            service.showAgentNotice("Nie widzę Chrome. Wróć do Pixel Agent.", 30000)
             loopRunning.set(false)
-            report("Nie odczytano elementów Chrome, przerwano.")
+            report("Brak interfejsu Chrome w Accessibility.")
+            return
+        }
+        val wantsLink = Regex("kliknij|link|artykuł|otwórz", RegexOption.IGNORE_CASE)
+            .containsMatchIn(goal)
+        if (wantsLink && history.isEmpty() && observation.targets.isEmpty()) {
+            if (retries < 9) {
+                report("Wczytuję linki, próba " + (retries + 1) + "/10")
+                handler.postDelayed({ runLoop(service, goal, history, step, retries + 1) }, 1300)
+                return
+            }
+            service.showAgentNotice("Brak linków po 10 próbach. Wróć do Pixel Agent i pokaż dziennik.", 30000)
+            loopRunning.set(false)
+            report("0 klikalnych linków po około 14 sekundach. " + observation.text.take(250))
             return
         }
         val reading = true to observation.text
-        report("Krok " + step + "/5: model analizuje ekran...")
+        report("Krok " + step + "/5: linki=" + observation.targets.size + ", AI analizuje...")
         background.execute {
             try {
                 val prompt = "Sterujesz testowym Chrome na publicznej Wikipedii. " +
