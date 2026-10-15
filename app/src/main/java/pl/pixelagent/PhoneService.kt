@@ -30,24 +30,22 @@ class PhoneService:AccessibilityService(){
  private var floating: OverlayController?=null
  private var overlayJob: AgentRuntime?=null
  private var cachedForeground:String?=null
- fun startFromOverlay(prompt:String,selectedApp:String){
+ fun startFromOverlay(prompt:String,initialApp:String){
   handler.post{
-   val chosen=AgentApps.allowed(this)
-   if(selectedApp !in chosen){
-    status("Pixel Agent: dozwól aplikację w ustawieniach.")
+   if(AppCatalog.restricted(initialApp)){
+    status("Ten ekran jest chroniony. Agent nie może nim sterować.")
     floating?.showBubble()
     return@post
    }
    val ai=ChatGptClient(this)
    if(!ai.isSignedIn()){
-    status("Najpierw zaloguj ChatGPT w Pixel Agent. Później wpisuj polecenia już tylko w nakładce.")
+    status("Najpierw zaloguj ChatGPT w Pixel Agent. Potem używaj nakładki ✦.")
     floating?.showBubble()
     return@post
    }
    overlayJob?.stop()
    overlayJob=AgentRuntime(
-    this,ai,this,chosen,selectedApp,prompt,true,
-    cachedForeground==selectedApp
+    this,ai,this,AppCatalog.allowedPackages(this,initialApp),initialApp,prompt,true,true
    ){msg->status("PIXEL AGENT\n"+msg)}
    overlayJob?.start()
   }
@@ -173,7 +171,11 @@ class PhoneService:AccessibilityService(){
    floating?.showBubble()
   },320)
  }
- override fun onAccessibilityEvent(event:AccessibilityEvent?){}
+ override fun onAccessibilityEvent(event:AccessibilityEvent?){
+  val pkg=event?.packageName?.toString()?:return
+  if(pkg=="pl.pixelagent.private" || pkg=="android" || AppCatalog.restricted(pkg))return
+  cachedForeground=pkg
+ }
  override fun onInterrupt(){}
  override fun onDestroy(){
   overlayJob?.stop()
@@ -187,8 +189,13 @@ class PhoneService:AccessibilityService(){
  }
  fun activePackage():String?{
   val pkg=rootInActiveWindow?.packageName?.toString()
-  if(pkg!=null && AgentApps.supported.any{it.second==pkg})cachedForeground=pkg
+  if(pkg!=null && pkg!="pl.pixelagent.private" && !AppCatalog.restricted(pkg))cachedForeground=pkg
   return pkg
+ }
+ fun launchContextPackage():String?{
+  val active=activePackage()
+  if(active!=null && active!="pl.pixelagent.private" && !AppCatalog.restricted(active))return active
+  return cachedForeground?.takeIf{it!="pl.pixelagent.private" && !AppCatalog.restricted(it)}
  }
 
  private fun textFor(node:AccessibilityNodeInfo):String{
