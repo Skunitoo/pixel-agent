@@ -32,7 +32,7 @@ data class AgentResult(
 )
 
 object AgentProtocol {
-    val actions = setOf("OPEN_APP", "TAP", "TYPE", "SCROLL_DOWN", "SCROLL_UP",
+    val actions = setOf("OPEN_APP", "SEARCH_WEB", "TAP", "TYPE", "PRESS_ENTER", "SCROLL_DOWN", "SCROLL_UP",
         "BACK", "HOME", "WAIT", "STOP")
     private val danger = Regex(
         "(bank|banking|wallet|crypto|broker|trading|exchange|revolut|paypal|" +
@@ -52,7 +52,7 @@ object AgentProtocol {
             danger.containsMatchIn(label)
 
     fun elevated(action: AgentCommand, screen: AgentScreen?): Boolean {
-        if (action.action == "TYPE") return true
+        if (action.action == "TYPE" || action.action == "SEARCH_WEB" || action.action == "PRESS_ENTER") return true
         if (action.action != "TAP" || screen == null) return false
         val node = screen.nodes.firstOrNull { it.id == action.target } ?: return true
         return riskyTarget.containsMatchIn(node.label)
@@ -84,11 +84,13 @@ object AgentProtocol {
                 }
                 if (match == null) "Wskazana aplikacja nie jest na liście dozwolonych." else null
             }
-            "TAP", "TYPE" -> {
+            "SEARCH_WEB" -> if (command.text.isBlank() || command.text.length > 200)
+                "Zapytanie WWW musi mieć od 1 do 200 znaków." else null
+            "TAP", "TYPE", "PRESS_ENTER" -> {
                 if (screen == null) return "Brak widocznego ekranu."
                 val node = screen.nodes.firstOrNull { it.id == command.target }
                     ?: return "Nieznany element ekranu."
-                if (command.action == "TYPE" && !node.editable)
+                if ((command.action == "TYPE" || command.action == "PRESS_ENTER") && !node.editable)
                     "Próba wpisania tekstu w pole nieedytowalne."
                 else if (command.action == "TYPE" && command.text.isBlank())
                     "Model nie podał tekstu do wpisania."
@@ -116,6 +118,8 @@ object AgentProtocol {
         appendLine("Allowed actions: " + actions.joinToString(", "))
         appendLine("TAP and TYPE use a numbered id from the current screen.")
         appendLine("TYPE writes text only to an editable field, never passwords or OTPs.")
+        appendLine("PRESS_ENTER invokes the IME Enter action on a numbered editable field.")
+        appendLine("SEARCH_WEB submits a short web search query using Chrome; put the query in text.")
         appendLine("OPEN_APP uses the exact label from the allowed-app list.")
         appendLine("Every action except WAIT and STOP is subject to explicit human approval.")
         appendLine("Do not automate money transfers, purchases, password entry, or account changes.")
