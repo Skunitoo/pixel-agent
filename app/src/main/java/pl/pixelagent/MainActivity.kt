@@ -284,6 +284,20 @@ class MainActivity : Activity() {
                                             return@runOnUiThread
                                         }
                                     }
+                                    if (command.action == "SEARCH_WEB") {
+                                        val uri = android.net.Uri.parse("https://www.google.com/search")
+                                            .buildUpon().appendQueryParameter("q", command.text).build()
+                                        try {
+                                            val web = Intent(Intent.ACTION_VIEW, uri)
+                                            if (apps.any { it.packageName == "com.android.chrome" }) {
+                                                web.setPackage("com.android.chrome")
+                                            }
+                                            startActivity(web)
+                                        } catch (error: Exception) {
+                                            finish("Nie uruchomiono wyszukiwania: " + message(error))
+                                            return@runOnUiThread
+                                        }
+                                    }
                                     history.add(command.action +
                                         (if (command.action == "OPEN_APP") " " + command.app else "") +
                                         ": przyjęte przez Androida")
