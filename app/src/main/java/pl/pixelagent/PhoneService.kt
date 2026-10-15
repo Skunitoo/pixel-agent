@@ -27,12 +27,114 @@ class PhoneService:AccessibilityService(){
  private val wm by lazy {getSystemService(WINDOW_SERVICE) as WindowManager}
  private var notice:TextView?=null
  private var dialog:LinearLayout?=null
+
+ private var emergency:Button?=null
+ private var stopCallback:(()->Unit)?=null
+ fun enableEmergencyStop(onStop:()->Unit){
+  handler.post{
+   stopCallback=onStop
+   if(emergency!=null)return@post
+   val button=Button(this).apply{
+    text="STOP AI"
+    textSize=14f
+    setBackgroundColor(0xffb3222d.toInt())
+    setTextColor(-1)
+    setOnClickListener{stopCallback?.invoke()}
+   }
+   val w=(resources.displayMetrics.density*118).toInt()
+   val h=(resources.displayMetrics.density*55).toInt()
+   val layout=WindowManager.LayoutParams(
+    w,h,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT
+   ).apply{gravity=Gravity.TOP or Gravity.RIGHT;y=(resources.displayMetrics.density*145).toInt()}
+   try{wm.addView(button,layout);emergency=button}catch(_:Exception){}
+  }
+ }
+ fun disableEmergencyStop(){
+  handler.post{
+   stopCallback=null
+   val button=emergency
+   emergency=null
+   if(button!=null)try{wm.removeView(button)}catch(_:Exception){}
+  }
+ }
+ fun telegramFolkChat():Boolean{
+  val root=rootInActiveWindow?:return false
+  if(root.packageName?.toString()!="org.telegram.messenger")return false
+  val top=(resources.displayMetrics.density*250).toInt()
+  var isFolk=false
+  fun walk(n:AccessibilityNodeInfo,depth:Int){
+   if(depth>12||isFolk)return
+   val bounds=Rect().also{n.getBoundsInScreen(it)}
+   val label=(n.text?:n.contentDescription)?.toString()?.trim().orEmpty()
+   if(n.isVisibleToUser && bounds.top in 0..top && bounds.height()>0 &&
+     label.equals("folk",ignoreCase=true))isFolk=true
+   for(i in 0 until n.childCount){
+    val child=n.getChild(i)?:continue
+    walk(child,depth+1)
+   }
+  }
+  walk(root,0)
+  return isFolk
+ }
+ fun telegramComposerText():String?{
+  if(!telegramFolkChat())return null
+  val root=rootInActiveWindow?:return null
+  var best:String?=null
+  var y=-1
+  fun walk(n:AccessibilityNodeInfo,depth:Int){
+   if(depth>17||n.isPassword)return
+   if(n.isEditable){
+    val b=Rect().also{n.getBoundsInScreen(it)}
+    if(b.top>y){best=n.text?.toString()?:"";y=b.top}
+   }
+   for(i in 0 until n.childCount) n.getChild(i)?.let{walk(it,depth+1)}
+  }
+  walk(root,0)
+  return best
+ }
+ fun sendFolk(expected:String):Boolean{
+  if(expected.isBlank() || expected.length>450 || !telegramFolkChat())return false
+  if(telegramComposerText()?.trim()!=expected.trim())return false
+  val root=rootInActiveWindow?:return false
+  val screenWidth=resources.displayMetrics.widthPixels
+  val screenHeight=resources.displayMetrics.heightPixels
+  val candidates=ArrayList<Pair<AccessibilityNodeInfo,Int>>()
+  val keyword=Regex("(?i)(^send$|^wyślij$|send message|wyślij wiadomość)")
+  fun walk(node:AccessibilityNodeInfo,depth:Int){
+   if(depth>18||node.isPassword)return
+   if(node.isVisibleToUser&&node.isClickable&&node.isEnabled&&!node.isEditable){
+    val b=Rect().also{node.getBoundsInScreen(it)}
+    val label=(node.contentDescription?:node.text)?.toString()?.trim().orEmpty()
+    if(b.width()>20&&b.height()>20 && b.right>screenWidth*.70 &&
+       b.top>screenHeight*.30 && b.bottom<=screenHeight){
+       val score=(if(keyword.containsMatchIn(label)) 100000 else 0)+
+         (b.right.toFloat()/screenWidth*1000).toInt() -
+         (b.width()/15) -
+         (if(label.isBlank()) 0 else if(keyword.containsMatchIn(label))0 else 10000)
+       if(keyword.containsMatchIn(label)||label.isBlank()){
+        candidates.add(node to score)
+       }
+    }
+   }
+   for(i in 0 until node.childCount)node.getChild(i)?.let{walk(it,depth+1)}
+  }
+  walk(root,0)
+  val target=candidates.maxByOrNull{it.second}?.first?:return false
+  return target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+ }
+ fun performAutonomous(action:UiAction,snapshot:UiSnapshot):Boolean{
+  // Only called from UI thread after the runtime's per-action security checks.
+  if(action.kind=="SEND") return sendFolk(action.value)
+  return try{execute(action,snapshot)}catch(_:Exception){false}
+ }
+
  private val blocked=Regex("(?i)(przelew|transfer money|payment|płatnoś|checkout|purchase|kup teraz|zamów|buy now|usuń konto|delete account|order sell|order buy|trade|withdraw|wypłat|password|hasło|2fa|otp|kod weryfikacji)")
 
  override fun onServiceConnected(){super.onServiceConnected();current=this}
  override fun onAccessibilityEvent(event:AccessibilityEvent?){}
  override fun onInterrupt(){}
- override fun onDestroy(){if(current===this)current=null;closeOverlays();super.onDestroy()}
+ override fun onDestroy(){if(current===this)current=null;disableEmergencyStop();closeOverlays();super.onDestroy()}
  fun activePackage():String?=rootInActiveWindow?.packageName?.toString()
 
  private fun textFor(node:AccessibilityNodeInfo):String{
