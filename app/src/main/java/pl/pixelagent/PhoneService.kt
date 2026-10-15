@@ -15,6 +15,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import android.os.SystemClock
 import java.security.MessageDigest
 
 data class UiTarget(val id:Int,val path:String,val label:String,val kind:String,val clazz:String,val bounds:Rect)
@@ -287,7 +289,23 @@ class PhoneService:AccessibilityService(){
  // No full-width, non-touchable overlay: it previously obscured app controls
  // and repeatedly churned WindowManager on the main accessibility thread.
  @Volatile private var latestStatus:String = ""
- fun status(msg:String){ latestStatus=msg.take(450) }
+ private var lastToast:String = ""
+ private var toastAt:Long = 0L
+ fun status(msg:String){
+  latestStatus=msg.take(450)
+  val report=msg.substringAfterLast("\n").trim()
+  val important=Regex("(?i)(^błąd|^nie uda|^nie mogę|^najpierw|^ten ekran|^aplikacja jest|" +
+      "^agent zatrzymany|^model zakończył|^zatrzymano|^telegram: próba wysłania)")
+  if(important.containsMatchIn(report)){
+   handler.post{
+    val now=SystemClock.uptimeMillis()
+    if(report!=lastToast || now-toastAt>3500){
+     lastToast=report;toastAt=now
+     Toast.makeText(applicationContext,report.take(140),Toast.LENGTH_LONG).show()
+    }
+   }
+  }
+ }
  fun lastStatus():String=latestStatus
 
  private fun dropNotice(){
