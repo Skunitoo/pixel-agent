@@ -40,3 +40,13 @@ Tap **Test odpowiedzi OpenAI**. Only when that succeeds use **Test AI na Chrome*
 GitHub Actions builds via Gradle 8.9 / Android Gradle Plugin 8.7.3 / SDK 35 / Java 17. App source in `app/src/main/java/pl/pixelagent/`.
 
 This build is experimental, not yet verified against a real OAuth grant. The success of the Android compilation alone does not prove sign-in or inference works.
+
+
+## v0.6 - Chrome multi-step preview
+- User enters a goal in Pixel Agent; the app opens public Polish Wikipedia in Chrome.
+- Agent reads a filtered Accessibility summary and chooses SCROLL_DOWN, SCROLL_UP, BACK or STOP.
+- User must approve every physical action using an Accessibility overlay; STOP rejects the task.
+- On approved actions the agent observes the screen again. Limit: 5 actions.
+- v0.6 cannot click links, submit forms, write messages, access other apps, trade or make payments.
+- OAuth and token storage unchanged since v0.5; app must be reinstalled if debug signing key changes.
+- v0.6 must still be tested on the actual Pixel; compilation alone is not a hardware validation.
