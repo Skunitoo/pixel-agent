@@ -166,6 +166,7 @@ class PhoneService:AccessibilityService(){
  override fun onServiceConnected(){
   super.onServiceConnected()
   current=this
+  AppCatalog.preload(applicationContext)
   handler.postDelayed({
    floating=OverlayController(this){prompt,pkg->startFromOverlay(prompt,pkg)}
    floating?.showBubble()
@@ -283,16 +284,21 @@ class PhoneService:AccessibilityService(){
   }
   return false
  }
- private fun dropNotice(){val v=notice?:return;notice=null;try{wm.removeView(v)}catch(_:Exception){}}
- private fun dropDialog(){val v=dialog?:return;dialog=null;try{wm.removeView(v)}catch(_:Exception){}}
- fun status(msg:String){
-  handler.post{
-   dropNotice()
-   val v=TextView(this).apply{setBackgroundColor(0xe9182e40.toInt());setTextColor(-1);textSize=15f;setPadding(20,14,20,14);text=msg.take(380)}
-   val lp=WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,PixelFormat.TRANSLUCENT).apply{gravity=Gravity.TOP;y=(resources.displayMetrics.density*60).toInt()}
-   try{wm.addView(v,lp);notice=v}catch(_:Exception){}
-  }
+ // No full-width, non-touchable overlay: it previously obscured app controls
+ // and repeatedly churned WindowManager on the main accessibility thread.
+ @Volatile private var latestStatus:String = ""
+ fun status(msg:String){ latestStatus=msg.take(450) }
+ fun lastStatus():String=latestStatus
+
+ private fun dropNotice(){
+  val view=notice?:return
+  notice=null
+  try{wm.removeViewImmediate(view)}catch(_:Exception){}
+ }
+ private fun dropDialog(){
+  val view=dialog?:return
+  dialog=null
+  try{wm.removeViewImmediate(view)}catch(_:Exception){}
  }
  fun approval(action:UiAction,snapshot:UiSnapshot,finished:(Boolean,Boolean)->Unit){
   handler.post{
