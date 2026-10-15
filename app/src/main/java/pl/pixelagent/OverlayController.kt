@@ -10,10 +10,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Button
 import android.text.InputType
@@ -139,10 +137,9 @@ class OverlayController(
 
     private fun openComposer() {
         hideBubble()
-        val appBefore = service.activePackage().orEmpty()
-        val choices = AgentApps.supported.filter { AgentApps.allowed(service).contains(it.second) }
-        if (choices.isEmpty()) {
-            service.status("Pixel Agent: nie ma dozwolonych aplikacji. Wybierz je w ustawieniach.")
+        val appBefore = service.launchContextPackage()
+        if (appBefore == null || AppCatalog.restricted(appBefore)) {
+            service.status("Otwórz aplikację, którą mam obsługiwać, a potem dotknij ✦.")
             showBubble()
             return
         }
@@ -174,25 +171,15 @@ class OverlayController(
         content.addView(header)
 
         content.addView(TextView(service).apply {
-            text = "Polecenie dla aktualnej aplikacji"
+            text = "Teraz: " + AppCatalog.displayName(service, appBefore)
             textSize = 12f
             setTextColor(muted)
             setPadding(0, dp(1), 0, dp(12))
         })
 
-        val options = choices.map { it.first }
-        val choicePicker = Spinner(service).apply {
-            adapter = ArrayAdapter(service, android.R.layout.simple_spinner_dropdown_item, options)
-            setBackgroundColor(fieldColor)
-        }
-        content.addView(choicePicker, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(46)
-        ))
-        val selectedIndex = choices.indexOfFirst { it.second == appBefore }
-        if (selectedIndex >= 0) choicePicker.setSelection(selectedIndex)
 
         val editor = EditText(service).apply {
-            hint = "Co mam zrobić?"
+            hint = "Co mam teraz zrobić na telefonie?"
             setHintTextColor(muted)
             setTextColor(ink)
             textSize = 16f
@@ -214,7 +201,7 @@ class OverlayController(
             setPadding(0, dp(14), 0, 0)
         }
         val explanation = TextView(service).apply {
-            text = "Autopilot  ·  STOP zawsze na ekranie"
+            text = "Autopilot  ·  STOP na ekranie"
             textSize = 11f
             setTextColor(muted)
         }
@@ -232,9 +219,8 @@ class OverlayController(
                 if (prompt.length !in 4..700) {
                     editor.error = "Wpisz polecenie (4-700 znaków)."
                 } else {
-                    val selected = choices[choicePicker.selectedItemPosition].second
                     closeComposer()
-                    handler.postDelayed({ startTask(prompt, selected) }, 350)
+                    handler.postDelayed({ startTask(prompt, appBefore) }, 350)
                 }
             }
         }
