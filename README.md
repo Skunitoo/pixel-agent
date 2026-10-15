@@ -1,61 +1,40 @@
-# Pixel Agent - Android Accessibility + ChatGPT OAuth
+# Pixel Agent v1.0
 
-Personal open-source Android prototype for Pixel 8 Pro. The app is local to your Android phone, and GitHub contains **only code**.
+Open-source personal Android agent for Pixel 8 Pro. Built with Kotlin and Android AccessibilityService. Runs on Android, uses OpenAI Sign in with ChatGPT OAuth (PKCE), and does not require a cloud server or separate OpenAI API key if authorized account access remains available.
 
-## Current release: v0.5 (experimental)
-- v0.4 Chrome hardware smoke test: successfully confirmed on a real Pixel 8 Pro.
-- OpenAI Sign in with ChatGPT (open-source dynamic client registration, OAuth PKCE S256, loopback callback on `127.0.0.1`).
-- OpenAI ID token RSA signature validation against official JWKS, nonce, audience, issuer and expiry checks.
-- OAuth scope `chatgpt.tokens.use.direct` required; encrypted token storage via Android Keystore (AES-256-GCM).
-- Access-token refresh via rotating refresh token.
-- Lists eligible model slugs from `https://api.openai.com/v1/models`.
-- Calls `https://api.openai.com/v1/responses` with `store:false`, `stream:true`, and displays text after `response.completed`.
-- One AI-guided, human-approved action: open `example.org` in Chrome, inspect a limited accessibility summary, ask the model BACK vs STOP, then ask for confirmation before executing BACK.
-- No native OpenAI Computer Use, no bank or broker integrations, no background autonomy.
+## Features
+- Interactive AI control of approved Android apps (Chrome, YouTube, Maps, Gmail, Telegram, Instagram, WhatsApp, Google Messages, Files and Settings - only apps explicitly enabled by user).
+- User enters a task. Agent reads visible accessibility nodes from **only enabled apps** and decides next action using OpenAI.
+- Actions: TAP, TYPE, ENTER, SCROLL_DOWN, SCROLL_UP, BACK, HOME, OPEN_APP, OPEN_URL, WAIT, DONE.
+- Explicit user approval for **every** physical action. For text entry, content is displayed before authorization.
+- Revalidates target path, label, class, bounds and current package before clicking or typing.
+- Reads new screen after each action. Stops on failed click, unavailable screen, unsupported action or denied approval.
+- Up to 25 actions per task; can be stopped from the main screen or by denying an action.
+- Stores OAuth credentials locally in Android Keystore encrypted storage; never uploads tokens to GitHub.
+- Starts from user-chosen installed app; can switch only to checked app packages. Chrome HTTPS navigation requires consent.
 
-## Install
-From GitHub **Actions > Build Android debug APK > latest successful run > Artifacts**, download `pixel-agent-debug-apk`, unzip and sideload `app-debug.apk` on Android.
+## Privacy, safety and real limitations
+- Text from the selected app screen **is sent to OpenAI for inference**. Enable only apps whose on-screen information you want to share with OpenAI; Gmail, messaging and social apps may show private information.
+- Password fields and payment/broker/transfer targets are filtered or blocked. No guarantee that all harmful or irreversible operations are detected. Do not enable banking, financial, trading or highly sensitive apps.
+- Each action needs user approval. This is *not* an unattended, always-on daemon.
+- Some apps (especially games, secure apps and custom-drawn interfaces) do not expose actionable Accessibility trees, and Android can kill sessions in the background.
+- Android AccessibilityService can observe and control extensive UI; only use builds and source you trust.
+- Success of `performAction` does not always prove the goal completed; the agent re-observes the screen and may stop if a TAP had no observed effect.
+- Not security audited. APK uses GitHub Actions debug signing key, which may change each build.
+- Targeted only at personal sideloaded use. Store distribution may require additional accessibility policy steps.
 
-In Pixel Agent, optionally enable **Pixel Agent** under Android Settings > Accessibility. On Android, sideloaded accessibility may require **App info > ... > Allow restricted settings**.
+## Installation
+1. GitHub Actions -> most recent successful **Build Android debug APK** -> artifact `pixel-agent-debug-apk`.
+2. Extract `app-debug.apk` and install it on your phone.
+3. If the previous build's debug key differs, uninstall old Pixel Agent first (local OAuth state will be lost).
+4. Settings -> Apps -> Pixel Agent -> (menu) Allow restricted settings (if prompted).
+5. Enable Pixel Agent under Android Accessibility.
+6. In the app, use **Continue with ChatGPT** and approve relevant OAuth scopes.
+7. Check allowed app boxes, choose starting app, enter a task and press **URUCHOM AGENTA**.
+8. Approve or STOP each proposed action on the screen. Stop is also available in the Pixel Agent app.
 
-Tap **Continue with ChatGPT**. Consent is optional; if access isn't granted, the app cannot make AI calls. The browser redirects to an ephemeral listener on your **own phone** at `http://127.0.0.1:<port>/auth/callback`. Return to the application after Chrome displays confirmation. The loopback listener does not require a server or cloud hosting.
+## Scope
+This is an initial v1.0 source and APK release, not a guarantee of compatibility with all Android apps. ChatGPT OAuth model entitlements depend on account permissions and provider availability. No prompt can make blocked apps expose their content.
 
-Tap **Test odpowiedzi OpenAI**. Only when that succeeds use **Test AI na Chrome**.
-
-## Security
-- Sensitive accounts/screens: do not use them with this prototype.
-- Code is not a security-audited Android agent; review permissions and avoid password fields.
-- Tokens are stored locally encrypted using the Android Keystore; never stored in GitHub.
-- Signing out removes local tokens; remote authorization is controlled in ChatGPT settings.
-- Debug APK is not release-signed for production distribution.
-- Only invoke actions after human approval.
-- Accessibility text from the Chrome test can be sent to OpenAI; use only public test pages.
-
-## Official docs
-- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
-- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
-- https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
-
-## Development
-GitHub Actions builds via Gradle 8.9 / Android Gradle Plugin 8.7.3 / SDK 35 / Java 17. App source in `app/src/main/java/pl/pixelagent/`.
-
-This build is experimental, not yet verified against a real OAuth grant. The success of the Android compilation alone does not prove sign-in or inference works.
-
-
-## v0.6 - Chrome multi-step preview
-- User enters a goal in Pixel Agent; the app opens public Polish Wikipedia in Chrome.
-- Agent reads a filtered Accessibility summary and chooses SCROLL_DOWN, SCROLL_UP, BACK or STOP.
-- User must approve every physical action using an Accessibility overlay; STOP rejects the task.
-- On approved actions the agent observes the screen again. Limit: 5 actions.
-- v0.6 cannot click links, submit forms, write messages, access other apps, trade or make payments.
-- OAuth and token storage unchanged since v0.5; app must be reinstalled if debug signing key changes.
-- v0.6 must still be tested on the actual Pixel; compilation alone is not a hardware validation.
-
-
-## v0.7 - testowy TAP w Chrome (2026-10-15)
-- Opcjonalne wybieranie widocznego, nieedytowalnego elementu strony jako TAP:id w modelu.
-- Usługa filtruje przyciski dotyczące logowania, zakupów i ustawień; stale sprawdza, że aktywna jest Chrome.
-- Przed kliknięciem sprawdza pełną listę kandydatów i pozycję konkretnego elementu; nie klika w ciemno.
-- Każdy TAP wymaga zgody na nakładce Androida. Po pierwszym TAP sesja zatrzymuje się celowo.
-- Potwierdzone sprzętowo v0.6: model ukończył test po dwóch zatwierdzonych krokach.
-- v0.7 wciąż wymaga testu na Pixelu; kompilacja sama nie dowodzi działania kliknięcia.
+## Source
+All Android sources in `app/src/main/`, the build workflow in `.github/workflows/android.yml`. Build settings: Android SDK 35, Java 17, Kotlin 2.0.21, AGP 8.7.3, Gradle 8.9.

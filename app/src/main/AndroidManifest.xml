@@ -1,28 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
-    <queries><package android:name="com.android.chrome" /></queries>
-    <application
-        android:label="Pixel Agent"
-        android:allowBackup="false"
-        android:usesCleartextTraffic="false"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <queries>
+        <package android:name="com.android.chrome"/>
+        <package android:name="com.google.android.youtube"/>
+        <package android:name="com.google.android.apps.maps"/>
+        <package android:name="com.google.android.gm"/>
+        <package android:name="org.telegram.messenger"/>
+        <package android:name="com.instagram.android"/>
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.google.android.apps.messaging"/>
+        <package android:name="com.google.android.apps.nbu.files"/>
+        <package android:name="com.android.settings"/>
+    </queries>
+    <application android:label="Pixel Agent" android:allowBackup="false"
+        android:usesCleartextTraffic="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <service
-            android:name=".PhoneService"
+        <service android:name=".PhoneService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:label="Pixel Agent - kontrola ekranu"
-            android:exported="true">
+            android:label="Pixel Agent - kontrola ekranu" android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService"/>
             </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
+            <meta-data android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config"/>
         </service>
     </application>
