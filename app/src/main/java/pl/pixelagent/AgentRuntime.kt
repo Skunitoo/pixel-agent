@@ -1,6 +1,6 @@
 package pl.pixelagent
 
-import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Handler
@@ -10,7 +10,7 @@ import java.util.concurrent.Executors
 import org.json.JSONObject
 
 class AgentRuntime(
-    private val activity: Activity,
+    private val activity: Context,
     private val client: ChatGptClient,
     private val service: PhoneService,
     private val allowed: Set<String>,
@@ -37,7 +37,7 @@ class AgentRuntime(
             end("Nie wybrano uprawnienia do tej aplikacji.")
             return
         }
-        if (!openApp(initialApp)) {
+        if (service.activePackage() != initialApp && !openApp(initialApp)) {
             end("Nie udało się uruchomić aplikacji: " + initialApp)
             return
         }
