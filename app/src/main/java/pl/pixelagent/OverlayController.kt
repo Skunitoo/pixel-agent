@@ -36,6 +36,7 @@ class OverlayController(
     private val accent = Color.rgb(88, 183, 249)
     private var bubble: TextView? = null
     private var composer: LinearLayout? = null
+    @Volatile private var destroyed = false
     private var bubbleOffsetY = dp(225)
 
     private fun dp(x: Int) = (x * density).toInt()
@@ -51,7 +52,7 @@ class OverlayController(
     @Suppress("ClickableViewAccessibility")
     fun showBubble() {
         handler.post {
-            if (bubble != null || composer != null) return@post
+            if (destroyed || bubble != null || composer != null) return@post
             val glyph = TextView(service).apply {
                 text = "✦"
                 gravity = Gravity.CENTER
@@ -113,26 +114,36 @@ class OverlayController(
     }
 
     fun hideBubble() {
-        handler.post {
-            val v = bubble ?: return@post
-            bubble = null
-            try { manager.removeView(v) } catch (_: Exception) {}
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            handler.post { hideBubble() }
+            return
         }
+        val view = bubble ?: return
+        bubble = null
+        // Immediate removal prevents a stale window from consuming touch.
+        try { manager.removeViewImmediate(view) } catch (_: Exception) {}
     }
 
-    fun closeComposer() {
-        handler.post {
-            val v = composer ?: return@post
-            val input = v.getTag() as? EditText
-            if (input != null) {
+    /** Removes focusable panel before handing control back to underlying app. */
+    fun closeComposer(restoreBubble: Boolean = true) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            handler.post { closeComposer(restoreBubble) }
+            return
+        }
+        val view = composer
+        if (view != null) {
+            composer = null
+            val editor = view.getTag() as? EditText
+            if (editor != null) {
                 val keyboard = service.getSystemService(Context.INPUT_METHOD_SERVICE)
                     as InputMethodManager
-                keyboard.hideSoftInputFromWindow(input.windowToken, 0)
+                try { keyboard.hideSoftInputFromWindow(editor.windowToken, 0) }
+                catch (_: Exception) {}
+                editor.clearFocus()
             }
-            composer = null
-            try { manager.removeView(v) } catch (_: Exception) {}
-            showBubble()
+            try { manager.removeViewImmediate(view) } catch (_: Exception) {}
         }
+        if (restoreBubble && !destroyed) showBubble()
     }
 
     private fun openComposer() {
@@ -219,8 +230,9 @@ class OverlayController(
                 if (prompt.length !in 4..700) {
                     editor.error = "Wpisz polecenie (4-700 znaków)."
                 } else {
-                    closeComposer()
-                    handler.postDelayed({ startTask(prompt, appBefore) }, 350)
+                    closeComposer(false)
+                    // Allow the IME and focusable overlay to vanish before reading the app.
+                    handler.postDelayed({ if (!destroyed) startTask(prompt, appBefore) }, 650)
                 }
             }
         }
@@ -256,8 +268,9 @@ class OverlayController(
     }
 
     fun destroy() {
+        destroyed = true
         handler.post {
-            closeComposer()
+            closeComposer(false)
             hideBubble()
         }
     }
