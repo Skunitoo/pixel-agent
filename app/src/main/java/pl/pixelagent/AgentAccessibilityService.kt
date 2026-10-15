@@ -199,7 +199,7 @@ class AgentAccessibilityService : AccessibilityService() {
         done: (AgentResult) -> Unit
     ) {
         val t = action.action
-        if (t == "OPEN_APP") {
+        if (t == "OPEN_APP" || t == "SEARCH_WEB") {
             done(AgentResult(true, true, "Zatwierdzono otwarcie aplikacji."))
             return
         }
@@ -214,6 +214,18 @@ class AgentAccessibilityService : AccessibilityService() {
                 val ok = node?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
                 done(AgentResult(true, ok, if (ok) "Tap przyjęty przez Androida." else
                     "Nie udało się kliknąć wybranego elementu."))
+            }
+            "PRESS_ENTER" -> {
+                val node = matchedTarget(screen, action.target)
+                if (node == null || node.isPassword || !node.isEditable) {
+                    done(AgentResult(true, false, "Nie można nacisnąć Enter w chronionym polu."))
+                    return
+                }
+                val ok = node.performAction(
+                    AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
+                )
+                done(AgentResult(true, ok, if (ok) "Enter przyjęty przez aplikację." else
+                    "Aplikacja nie udostępnia akcji IME Enter. Spróbuj SEARCH_WEB."))
             }
             "TYPE" -> {
                 val node = matchedTarget(screen, action.target)
@@ -293,6 +305,8 @@ class AgentAccessibilityService : AccessibilityService() {
                 "TAP" -> "Kliknięcie: " + (node?.label ?: "nieznany element")
                 "TYPE" -> "Wpisanie tekstu: " + action.text.take(140)
                 "OPEN_APP" -> "Otwórz aplikację: " + action.app
+                "SEARCH_WEB" -> "Wyszukaj w Chrome: " + action.text.take(160)
+                "PRESS_ENTER" -> "Enter w polu: " + (node?.label ?: "nieznane")
                 else -> action.action
             }
             val elevated = AgentProtocol.elevated(action, observed)
