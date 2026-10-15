@@ -246,7 +246,8 @@ class MainActivity : Activity() {
 
     private fun report(message: String) {
         runOnUiThread {
-            statusView.text = "Status: " + message
+            if (::statusView.isInitialized) statusView.text = "Status: " + message
+            if (loopRunning.get()) PhoneService.current?.showAgentNotice(message.take(180))
         }
     }
     private fun safeError(error: Exception): String =
