@@ -9,8 +9,8 @@ android {
         applicationId = "pl.pixelagent.private"
         minSdk = 30
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0.0"
+        versionCode = 11
+        versionName = "1.1.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

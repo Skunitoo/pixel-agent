@@ -27,12 +27,45 @@ class PhoneService:AccessibilityService(){
  private val wm by lazy {getSystemService(WINDOW_SERVICE) as WindowManager}
  private var notice:TextView?=null
  private var dialog:LinearLayout?=null
+ private var floating: OverlayController?=null
+ private var overlayJob: AgentRuntime?=null
+ private var cachedForeground:String?=null
+ fun startFromOverlay(prompt:String,selectedApp:String){
+  handler.post{
+   val chosen=AgentApps.allowed(this)
+   if(selectedApp !in chosen){
+    status("Pixel Agent: dozwól aplikację w ustawieniach.")
+    floating?.showBubble()
+    return@post
+   }
+   val ai=ChatGptClient(this)
+   if(!ai.isSignedIn()){
+    status("Najpierw zaloguj ChatGPT w Pixel Agent. Później wpisuj polecenia już tylko w nakładce.")
+    floating?.showBubble()
+    return@post
+   }
+   overlayJob?.stop()
+   overlayJob=AgentRuntime(
+    this,ai,this,chosen,selectedApp,prompt,true,
+    cachedForeground==selectedApp
+   ){msg->status("PIXEL AGENT\n"+msg)}
+   overlayJob?.start()
+  }
+ }
+ fun stopOverlayAgent(){
+  handler.post{
+   overlayJob?.stop()
+   overlayJob=null
+   floating?.showBubble()
+  }
+ }
 
  private var emergency:Button?=null
  private var stopCallback:(()->Unit)?=null
  fun enableEmergencyStop(onStop:()->Unit){
   handler.post{
    stopCallback=onStop
+   floating?.hideBubble()
    if(emergency!=null)return@post
    val button=Button(this).apply{
     text="STOP AI"
@@ -56,6 +89,7 @@ class PhoneService:AccessibilityService(){
    val button=emergency
    emergency=null
    if(button!=null)try{wm.removeView(button)}catch(_:Exception){}
+   floating?.showBubble()
   }
  }
  fun telegramFolkChat():Boolean{
@@ -131,11 +165,31 @@ class PhoneService:AccessibilityService(){
 
  private val blocked=Regex("(?i)(przelew|transfer money|payment|płatnoś|checkout|purchase|kup teraz|zamów|buy now|usuń konto|delete account|order sell|order buy|trade|withdraw|wypłat|password|hasło|2fa|otp|kod weryfikacji)")
 
- override fun onServiceConnected(){super.onServiceConnected();current=this}
+ override fun onServiceConnected(){
+  super.onServiceConnected()
+  current=this
+  handler.postDelayed({
+   floating=OverlayController(this){prompt,pkg->startFromOverlay(prompt,pkg)}
+   floating?.showBubble()
+  },320)
+ }
  override fun onAccessibilityEvent(event:AccessibilityEvent?){}
  override fun onInterrupt(){}
- override fun onDestroy(){if(current===this)current=null;disableEmergencyStop();closeOverlays();super.onDestroy()}
- fun activePackage():String?=rootInActiveWindow?.packageName?.toString()
+ override fun onDestroy(){
+  overlayJob?.stop()
+  overlayJob=null
+  floating?.destroy()
+  floating=null
+  if(current===this)current=null
+  disableEmergencyStop()
+  closeOverlays()
+  super.onDestroy()
+ }
+ fun activePackage():String?{
+  val pkg=rootInActiveWindow?.packageName?.toString()
+  if(pkg!=null && AgentApps.supported.any{it.second==pkg})cachedForeground=pkg
+  return pkg
+ }
 
  private fun textFor(node:AccessibilityNodeInfo):String{
   if(node.isPassword)return "[CHRONIONE]"

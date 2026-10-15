@@ -72,8 +72,8 @@ class MainActivity : Activity() {
         }
 
         heading("PIXEL AGENT", 27f)
-        paragraph("Wersja 1.0 | lokalny kontroler Androida | ChatGPT OAuth")
-        paragraph("Polecenie -> odczyt ekranu -> decyzja AI -> Twoje zatwierdzenie -> działanie -> ponowny odczyt. Maksymalnie 25 działań na zadanie.")
+        paragraph("Wersja 1.1 | nakładka ✦ nad ekranem | ChatGPT OAuth")
+        paragraph("Aby wydać polecenie, naciśnij pływający przycisk ✦ w dowolnej dozwolonej aplikacji. Ustawienia i pierwsze logowanie wykonujesz tutaj. Autopilot pracuje sam, a STOP AI pozostaje na ekranie.")
 
         heading("1. Połączenie i uprawnienia", 19f)
         button("Włącz usługę Dostępności") {
@@ -101,14 +101,18 @@ class MainActivity : Activity() {
             showStatus("Lokalne tokeny usunięte.")
         }
         heading("2. Aplikacje dostępne dla agenta", 19f)
-        paragraph("Zaznacz tylko te aplikacje, których ekran i tekst możesz przesyłać do modelu OpenAI. Chrome jest włączony domyślnie. Niezaznaczonych aplikacji agent nie może odczytywać ani obsługiwać.")
+        paragraph("Odczyt ekranów dozwolonych aplikacji trafia do modelu OpenAI. Chrome i Telegram są włączone na start. Zmiany zapisują się automatycznie.")
         for ((name, pkg) in apps) {
             val box = CheckBox(this).apply {
                 text = name
                 textSize = 15f
-                isChecked = pkg == "com.android.chrome"
+                isChecked = pkg in AgentApps.allowed(this@MainActivity)
             }
             checks[pkg] = box
+            box.setOnCheckedChangeListener { _, _ ->
+                AgentApps.save(this@MainActivity,
+                    checks.filterValues { it.isChecked }.keys.toSet())
+            }
             content.addView(box)
         }
         heading("3. Polecenie", 19f)
@@ -152,7 +156,7 @@ class MainActivity : Activity() {
             agent?.stop()
             history.clear()
             showStatus("Uruchamiam sesję.")
-            agent = AgentRuntime(this, client, service, authorized, selected, goal) {
+            agent = AgentRuntime(this, client, service, authorized, selected, goal, true, false) {
                 showStatus(it)
             }
             agent?.start()
@@ -160,10 +164,11 @@ class MainActivity : Activity() {
         button("STOP - NATYCHMIAST ZATRZYMAJ") {
             agent?.stop()
             agent = null
+            PhoneService.current?.stopOverlayAgent()
             PhoneService.current?.closeOverlays()
             showStatus("Zatrzymano polecenie.")
         }
-        paragraph("Operacje nieodwracalne, płatności, handel, hasła i kody 2FA są zablokowane. Pozostałe działania wymagają indywidualnego zatwierdzenia. Aplikacja nie jest całodobową usługą i może zostać zamknięta przez Androida.")
+        paragraph("Autopilot wykonuje proste kroki sam. Wysyłanie wiadomości jest automatyczne wyłącznie dla rozpoznanej rozmowy z botem Folk. Inne działania wrażliwe mogą wymagać zgody. Płatności, trading, hasła i 2FA pozostają wyłączone. STOP AI jest widoczny nad aplikacjami.")
         heading("Dziennik wykonania", 19f)
         statusText = TextView(this).apply {
             textSize = 14f

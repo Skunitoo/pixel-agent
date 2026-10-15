@@ -38,3 +38,13 @@ This is an initial v1.0 source and APK release, not a guarantee of compatibility
 
 ## Source
 All Android sources in `app/src/main/`, the build workflow in `.github/workflows/android.yml`. Build settings: Android SDK 35, Java 17, Kotlin 2.0.21, AGP 8.7.3, Gradle 8.9.
+
+
+## v1.1 - Floating Android command bar
+- A movable ✦ bubble appears above the phone whenever Pixel Agent AccessibilityService is enabled.
+- Tap it to issue a task in a minimal overlay without opening the Pixel Agent Activity. Choose an already authorized app.
+- The overlay supports prompt input, switching to an allowed app, and autonomous execution. A red always-visible STOP AI button appears during tasks.
+- By default only Chrome and Telegram are authorized; change app permissions in Settings screen.
+- Telegram auto-send is restricted to the currently identified Folk bot conversation, exact user-entered message, and no blind retries.
+- OAuth must be completed once inside Pixel Agent; account access and screen-reading permissions must be user-approved.
+- Never enable banking/trading. No background daemon guarantee: Android can stop the accessibility service.

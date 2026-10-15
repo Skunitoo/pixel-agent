@@ -17,6 +17,7 @@ class AgentRuntime(
     private val initialApp: String,
     private val goal: String,
     private val autonomous: Boolean,
+    private val keepForeground: Boolean = false,
     private val report: (String) -> Unit
 ) {
     private val main = Handler(Looper.getMainLooper())
@@ -37,7 +38,7 @@ class AgentRuntime(
             end("Nie wybrano uprawnienia do tej aplikacji.")
             return
         }
-        if (service.activePackage() != initialApp && !openApp(initialApp)) {
+        if (!keepForeground && service.activePackage() != initialApp && !openApp(initialApp)) {
             end("Nie udało się uruchomić aplikacji: " + initialApp)
             return
         }
