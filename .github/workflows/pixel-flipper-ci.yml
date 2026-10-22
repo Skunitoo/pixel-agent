@@ -41,7 +41,7 @@ jobs:
       - name: Publish APK
         uses: actions/upload-artifact@v4
         with:
-          name: PixelFlipper-v0.1-debug
+          name: PixelFlipper-v0.2-debug
           path: pixel-flipper/project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
